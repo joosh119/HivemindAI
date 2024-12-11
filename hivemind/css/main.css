@@ -75,6 +75,7 @@ p{
     margin-right: auto;
 }
 .bottom{
+    font-size: 1.5vw;
     position: absolute;
     bottom: 3vw;
     width: 100%;
