@@ -4,7 +4,7 @@
 
 <!-- HEAD -->
 <head>
-    <title> Hivemind </title>
+    <title> HivemindAI </title>
 
     <link rel="stylesheet" href="/hivemind/css/main.css">
     <link rel="icon" type="image/x-icon" href="favicon.ico">
@@ -13,12 +13,37 @@
 
 <!-- BODY -->
 <body>
-    <canvas id="game_canvas">
-    </canvas>
+    <!-- INFO -->
+    <button id="info_button" class="info_button">Info</button>
+    <div id="info_popup" class="info_popup">
+        <button id="close_button" class="close_button">X</button>
+        <p>
+            Play against the AI as it trains itself to beat you!
+            Use WASD to move your little blue guy around, and jump on top of the red enemies to defeat them.
+            If the enemies touch you from the top or side, you die. <br>
+            Training the AI from scratch can take a while, so try using the preset(s):
+        </p>
+        <p>
+            This AI was trained to simply stay alive and target the player if in sight: <br>
+            <button id="passive01_2-30_2-30" class="network_button"> Passively Trained</button> 
+        </p>
+        <p>
+            This AI was trained against a human player (me): <br>
+            <button id="manual01-2-30_2-30" class="network_button"> Manually Trained</button>
+        </p>
+        <p class="bottom">
+            Created by <a href="https://joshschnauber.com" target="_blank" rel="noopener noreferrer">Josh Schnauber</a><br>
+            <a href="https://github.com/joosh119/HivemindAI" target="_blank" rel="noopener noreferrer">Github</a>
+        </p>
+    </div>
+
+    <!-- GAME CANVAS -->
+    <canvas id="game_canvas"> </canvas>
 </body>
 
 
 <script src="/hivemind/wasm/wasm.js" type="module"></script>
 <script src="/hivemind/index.js" type="module"></script>
+<script src="/hivemind/js/main.js" type="module"></script>
 
 </html>

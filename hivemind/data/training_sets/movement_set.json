@@ -1,0 +1,17 @@
+{
+    "tps":30,
+
+    "gravity":0.0001,
+    "drag": 0.0035,
+    "move_acc": 0.0001,
+    "jump_speed": 0.07,
+    "enemy_visibility": 25,
+
+    "environments":[
+        "flat",
+        "layers",
+        "three_plat",
+        "high_rise",
+        "stairs"
+    ]
+}

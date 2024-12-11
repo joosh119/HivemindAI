@@ -7,3 +7,75 @@ canvas{
     height: 100vh;
     image-rendering: pixelated;
 }
+
+.info_button{
+    position: fixed;
+    width: 6vh;
+    height: 6vh;
+    top: 2vh;
+    right: 2vw;
+
+    border: none;
+    border-radius: 1.5vh;
+    background-color: gray;
+}
+.info_button:hover{
+    background-color: darkgray;
+}
+
+.close_button{
+    position: fixed;
+    width: 4vh;
+    height: 4vh;
+    top: 1.5vh;
+    left: 51.5vw;
+
+    border: none;
+    border-radius: 1vh;
+    background-color: gray;
+}
+.close_button:hover{
+    background-color: darkgray;
+}
+
+.network_button{
+    width: 40vw;
+    height: 5vw;
+
+    border: none;
+    border-radius: 1vh;
+    background-color: gray;
+
+    font-size: 1.5vw;
+}
+.network_button:hover{
+    background-color: darkgray;
+}
+
+.info_popup{
+    visibility: hidden;
+    position: fixed;
+    width: 44vw;
+    height: 100%;
+    top: 0vh;
+    right: 0vw;
+    padding-left: 3vw;
+    padding-right: 3vw;
+    padding-top: 5vh;
+
+    background-color: lightgray;
+    box-shadow: 0 0 5vw 0 black;
+    border-left: 10px thick black;
+}
+p{
+    text-align: center;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 2vw;
+    margin-left: auto;
+    margin-right: auto;
+}
+.bottom{
+    position: absolute;
+    bottom: 3vw;
+    width: 100%;
+}

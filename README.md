@@ -1,1 +1,5 @@
 # HivemindAI
+
+
+# TODO
+-
