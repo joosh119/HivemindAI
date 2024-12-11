@@ -1,5 +1,2 @@
 # HivemindAI
-
-
-# TODO
--
+Website that contains the Hivemind AI game.
