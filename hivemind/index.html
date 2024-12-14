@@ -1,15 +1,24 @@
-<meta name="theme-color" content="#FFFFFF"/>
+<!DOCTYPE html>
 
 <html lang="en">
-
 <!-- HEAD -->
 <head>
     <title> HivemindAI </title>
+    <meta name="description" content="Play against an AI as you train it to beat you!"/>
+    <meta charset="UTF-8">
+    <meta name="theme-color" content="#FFFFFF"/>
 
     <link rel="stylesheet" href="/hivemind/css/main.css">
-    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link rel="icon" type="image/x-icon" href="/hivemind/favicon.ico">
+    <script src="/hivemind/wasm/wasm.js" type="module"></script>
+    <script src="/hivemind/index.js" type="module"></script>
+    <script src="/hivemind/js/main.js" type="module"></script>
+    
+    <link rel="canonical" href="https://joshschnauber.com/hivemind/"/>
+    <meta property="og:title" content="HivemindAI"/>
+    <meta property="og:description" content="Play against and train an AI."/>
+    <meta property="og:image" content="/hivemind/favicon.ico"/>
 </head>
-
 
 <!-- BODY -->
 <body>
@@ -25,11 +34,11 @@
         </p>
         <p>
             This AI was trained to simply stay alive and target the player if in sight: <br>
-            <button id="passive01_2-30_2-30" class="network_button"> Passively Trained</button> 
+            <button id="passive01_1-18_1-18" class="network_button"> Passively Trained</button> 
         </p>
         <p>
             This AI was trained against a human player (me): <br>
-            <button id="manual01-2-30_2-30" class="network_button"> Manually Trained</button>
+            <button id="manual01_1-18_1-18" class="network_button"> Manually Trained</button>
         </p>
         <p class="bottom">
             Created by <a href="https://joshschnauber.com" target="_blank" rel="noopener noreferrer">Josh Schnauber</a><br>
@@ -40,10 +49,5 @@
     <!-- GAME CANVAS -->
     <canvas id="game_canvas"> </canvas>
 </body>
-
-
-<script src="/hivemind/wasm/wasm.js" type="module"></script>
-<script src="/hivemind/index.js" type="module"></script>
-<script src="/hivemind/js/main.js" type="module"></script>
 
 </html>

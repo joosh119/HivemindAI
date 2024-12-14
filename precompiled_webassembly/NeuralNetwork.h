@@ -5,6 +5,7 @@
 #include <iostream>
 
 
+const float N_EPSILON = 1e-7;
 
 inline float randomRange(const float min = 0, const float max = 1){
     return ((double) std::rand() / RAND_MAX)*(max-min) + min;
@@ -35,7 +36,6 @@ class NeuralNetwork{
 
     ActivationFunction hidden_fn;
     std::vector<ActivationFunction> output_fns;
-    float learning_rate;
 
 
     public:
@@ -119,7 +119,7 @@ class NeuralNetwork{
     public:
     NeuralNetwork() {}
     NeuralNetwork(  const int input_layer_size, const int output_layer_size, const int hidden_layer_size, const int hidden_layer_count,
-                    const float learning_rate, const ActivationFunction& hidden_fn = RELU, const ActivationFunction& output_fn = SIGMOID){
+                    const ActivationFunction& hidden_fn = RELU, const ActivationFunction& output_fn = SIGMOID){
         // Set sizes
         this->input_layer_size = input_layer_size;
         this->output_layer_size = output_layer_size;
@@ -128,8 +128,6 @@ class NeuralNetwork{
         // Set activation functions
         this->hidden_fn = hidden_fn;
         this->output_fns = std::vector<ActivationFunction>(output_layer_size, output_fn);
-        // Set learning rate
-        this->learning_rate = learning_rate;
         // Calculate total nodes and edges
         recalculate();
     }
@@ -368,25 +366,23 @@ class NeuralNetwork{
         }}
     }
     // Find the gradients with the squared loss and node values obtained from propagateStore() and update the bias and weights
-    void backpropagate(const float* inputs, const float* prev_node_vals, const float* post_node_vals, const float* output_D){
+    void backpropagate(const float* inputs, const float* prev_node_vals, const float* post_node_vals, const float* output_D, const float learning_rate){
         float weight_grad[weights.size()];
         float bias_grad[bias.size()];
         
         backpropagateStore(inputs, prev_node_vals, post_node_vals, output_D, weight_grad, bias_grad);
 
-        applyGradients(weight_grad, bias_grad);
+        applyGradients(weight_grad, bias_grad, learning_rate);
     }
 
-    // Update weights with average gradients, dividing by number of timesteps
-    // -1 for gradient descent and 1 for ascent
-    void applyGradients(const float* weight_grad, const float* bias_grad, const float modifier = -1){
-        const float grad_multiplier = learning_rate * modifier;
-        
+    // Update weights with gradients
+    // Subtracts weights for gradient descent
+    void applyGradients(const float* weight_grad, const float* bias_grad, const float learning_rate){
         for(int i = 0; i < weights.size(); i++){
-            weights[i] += weight_grad[i] * grad_multiplier;
+            weights[i] -= weight_grad[i] * learning_rate;
         }
         for(int i = 0; i < bias.size(); i++){
-            bias[i] += bias_grad[i] * grad_multiplier;
+            bias[i] -= bias_grad[i] * learning_rate;
         }
     }
 

@@ -21,26 +21,26 @@ const int AI_MAP_VISIBILITY = 9; // This is how many downward raycasts to perfor
 const int INPUT_LAYER_SIZE = 7 + AI_MAP_VISIBILITY;
 const int POLICY_OUTPUT_LAYER_SIZE = (2) * 2;
 
-const int POLICY_DEFAULT_HIDDEN_LAYER_COUNT = 2;
-const int VALUE_DEFAULT_HIDDEN_LAYER_COUNT = 2;
-const int POLICY_DEFAULT_HIDDEN_LAYER_SIZE = 30;
-const int VALUE_DEFAULT_HIDDEN_LAYER_SIZE = 30;
+const int POLICY_DEFAULT_HIDDEN_LAYER_COUNT = 1;
+const int VALUE_DEFAULT_HIDDEN_LAYER_COUNT = 1;
+const int POLICY_DEFAULT_HIDDEN_LAYER_SIZE = 18;
+const int VALUE_DEFAULT_HIDDEN_LAYER_SIZE = 18;
 
 // Misc learning constants
-const float REWARD_REDUCTION = 0.99f;
+const float REWARD_REDUCTION = 0.98f;
 const float SMOOTHING_FACTOR = 0.95f;
-const int MAX_VALUE_ITR = 3; // Number of epochs
-const int MAX_POLICY_ITR = 3; // Number of epochs
-const int BATCH_SIZE = 400; //// This large value means there will essentially be no minibatching
+const int MAX_VALUE_ITR = 1; // Number of epochs
+const int MAX_POLICY_ITR = 1; // Number of epochs
+const int BATCH_SIZE = 1e5; //// This large value means there will essentially be no minibatching
 const float CLIP = 0.2f;
-const float MIN_CLIP = 1.0f - CLIP;
-const float MAX_CLIP = 1.0f + CLIP;
-const float ENTROPY_BONUS = -10e-3f;
+const float ENTROPY_BONUS = 1e-3f;
 const float LEARNING_RATE = 3e-3f;
 const float POLICY_REGULARIZATION_STRENGTH = 0e-5;
 const float VALUE_REGULARIZATION_STRENGTH = 0e-5;
 const float NOISE_SMOOTHING = 0.0f;
-const float THRESHOLD_NOISE_CUTOFF = 0.5f;
+const float THRESHOLD_NOISE_CUTOFF = 0.3f;
+const float MOMENTUM_DECAY = 0.9f;
+const float SQR_MOMENTUM_DECAY = 0.999f;
 
 // Max timestates saved in an episode
 const int MAX_SAVED_TIME_STATES = 60*30; // 40 sec of saved timesteps with 30 fps
@@ -136,8 +136,21 @@ class PPO{
     public:
     // Network that estimates the reward
     NeuralNetwork value_network; 
+    // Previous gradients for value network
+    std::vector<float> value_weight_momentum;
+    std::vector<float> value_bias_momentum;
+    std::vector<float> value_weight_sqr_momentum;
+    std::vector<float> value_bias_sqr_momentum;
     // Network that estimates the optimal movement
     NeuralNetwork policy_network;
+    // Previous gradients for policy network
+    std::vector<float> policy_weight_momentum;
+    std::vector<float> policy_bias_momentum;
+    std::vector<float> policy_weight_sqr_momentum;
+    std::vector<float> policy_bias_sqr_momentum;
+    // Count of the number of times each network has been updated
+    int value_updates;
+    int policy_updates;
     
     public:
     PPO(){ }
@@ -146,9 +159,23 @@ class PPO{
             const int value_hidden_layer_size, const int value_hidden_layer_count,
             const int policy_hidden_layer_size, const int policy_hidden_layer_count)
 
-        :   value_network( NeuralNetwork( input_size, 1, value_hidden_layer_size, value_hidden_layer_count, LEARNING_RATE, NeuralNetwork::RELU, NeuralNetwork::LINEAR)),
-            policy_network(NeuralNetwork( input_size, policy_output_size, policy_hidden_layer_size, policy_hidden_layer_count, LEARNING_RATE)){
+        :   value_network( NeuralNetwork( input_size, 1, value_hidden_layer_size, value_hidden_layer_count, NeuralNetwork::RELU, NeuralNetwork::LINEAR)),
+            policy_network(NeuralNetwork( input_size, policy_output_size, policy_hidden_layer_size, policy_hidden_layer_count)){
         
+        // Set previous momentum arrays all to 0
+        value_weight_momentum  = std::vector<float>(value_network.getWeightCount()  , 0);
+        value_bias_momentum    = std::vector<float>(value_network.getBiasCount()    , 0);
+        policy_weight_momentum = std::vector<float>(policy_network.getWeightCount() , 0);
+        policy_bias_momentum   = std::vector<float>(policy_network.getBiasCount()   , 0);
+        value_weight_sqr_momentum  = std::vector<float>(value_network.getWeightCount()  , 0);
+        value_bias_sqr_momentum    = std::vector<float>(value_network.getBiasCount()    , 0);
+        policy_weight_sqr_momentum = std::vector<float>(policy_network.getWeightCount() , 0);
+        policy_bias_sqr_momentum   = std::vector<float>(policy_network.getBiasCount()   , 0);
+
+        // Set counts to zero
+        value_updates = 0;
+        policy_updates = 0;
+
         // Set LINEAR for mean outputs and EXP for log stddev outputs (to get normal stddev)
         std::vector<NeuralNetwork::ActivationFunction> output_fns(policy_output_size);
         for(int i = 0; i < policy_output_size/2; ++i)
@@ -289,15 +316,39 @@ class PPO{
                         total_bias_grad[i] += bias_grad[i];
                 }
 
-                // Average total weights
-                for(int i = 0; i < weight_count; ++i)
+                // Average total weights and add momentum
+                for(int i = 0; i < weight_count; ++i){
                     total_weight_grad[i] /= c;
-                for(int i = 0; i < bias_count; ++i)
+                }
+                for(int i = 0; i < bias_count; ++i){
                     total_bias_grad[i] /= c;
+                }
+                // Add momentum and root mean square prop
+                if( MOMENTUM_DECAY > 0  ||  SQR_MOMENTUM_DECAY > 0) {
+                    for(int i = 0; i < weight_count; ++i){
+                        value_weight_momentum[i] =      value_weight_momentum[i]*MOMENTUM_DECAY         +  total_weight_grad[i]*(1-MOMENTUM_DECAY);
+                        value_weight_sqr_momentum[i] =  value_weight_sqr_momentum[i]*SQR_MOMENTUM_DECAY +  total_weight_grad[i]*total_weight_grad[i]*(1-SQR_MOMENTUM_DECAY);
+                        float m_hat =       value_weight_momentum[i]        / (1 - std::pow(MOMENTUM_DECAY, value_updates+1));
+                        float sqr_m_hat =   value_weight_sqr_momentum[i]    / (1 - std::pow(SQR_MOMENTUM_DECAY, value_updates+1));
+
+                        total_weight_grad[i] = m_hat / (std::sqrt(sqr_m_hat) + N_EPSILON);
+                    }
+                    for(int i = 0; i < bias_count; ++i){
+                        value_bias_momentum[i] =      value_bias_momentum[i]*MOMENTUM_DECAY         +  total_bias_grad[i]*(1-MOMENTUM_DECAY);
+                        value_bias_sqr_momentum[i] =  value_bias_sqr_momentum[i]*SQR_MOMENTUM_DECAY +  total_bias_grad[i]*total_bias_grad[i]*(1-SQR_MOMENTUM_DECAY);
+                        float m_hat =       value_bias_momentum[i]        / (1 - std::pow(MOMENTUM_DECAY, value_updates+1));
+                        float sqr_m_hat =   value_bias_sqr_momentum[i]    / (1 - std::pow(SQR_MOMENTUM_DECAY, value_updates+1));
+
+                        total_bias_grad[i] = m_hat / (std::sqrt(sqr_m_hat) + N_EPSILON);
+                    }
+                }
                 // Account for regularization in gradient
-                value_network.addRegularization(total_weight_grad, total_bias_grad, VALUE_REGULARIZATION_STRENGTH); 
+                if( VALUE_REGULARIZATION_STRENGTH > 0)
+                    value_network.addRegularization(total_weight_grad, total_bias_grad, VALUE_REGULARIZATION_STRENGTH); 
                 // Apply gradients
-                value_network.applyGradients(total_weight_grad, total_bias_grad, -1);
+                value_network.applyGradients(total_weight_grad, total_bias_grad, LEARNING_RATE);
+                // Update count
+                value_updates ++;
             }
         }
     }
@@ -371,20 +422,25 @@ class PPO{
                     float r[half_output_count];
                     for(int i = 0; i < half_output_count; ++i){
                         prob_new[i] = probabilityDensity(out[i], out[half_output_count + i], timestates[t].choices_v[i]);
-                        r[i] = prob_new[i] / prob_old[t][i]; 
+                        r[i] = prob_new[i] / prob_old[t][i];
                     }
 
                     // Find the gradient of the clipped loss function
                     float loss_D[output_count];
                     for(int i = 0; i < half_output_count; ++i){ 
                         // Clip probability ratio
-                        if(advantages[t] >= 0  &&  prob_new[i] >= MAX_CLIP*prob_old[t][i]){
-                            loss_D[i] =                     0;// Mean
-                            loss_D[half_output_count + i] =    0;// Standard deviation
+                        if( advantages[t] >= 0  &&      r[i] >= (1+CLIP) ){
+                            loss_D[i] =                         0;// Mean
+                            loss_D[half_output_count + i] =     0;// Standard deviation
                         }
-                        else if(advantages[t] < 0  &&  prob_new[i] <= MIN_CLIP*prob_old[t][i]){
-                            loss_D[i] =                     0; // Mean
-                            loss_D[half_output_count + i] =    0; // Standard deviation
+                        else if( advantages[t] < 0  &&  r[i] <= (1-CLIP) ){
+                            loss_D[i] =                         0; // Mean
+                            loss_D[half_output_count + i] =     0; // Standard deviation
+                        }
+                        // If old ratio is nan or infinity, don't use it
+                        else if( std::isnan(r[i])  ||  std::isinf(r[i]) ){
+                            loss_D[i] =                         0; // Mean
+                            loss_D[half_output_count + i] =     0; // Standard deviation
                         }
 
                         // If no clip, do normal derivative
@@ -397,7 +453,7 @@ class PPO{
                             // Mean
                             loss_D[i] =                     (advantages[t]) * (r[i]) * (mean_diff / stddev_2);
                             // Standard deviation: Loss + entropy
-                            loss_D[half_output_count + i] =    (advantages[t]) * (r[i]) * (((mean_diff*mean_diff) / (stddev_2*stddev)) - (1/stddev))
+                            loss_D[half_output_count + i] = (advantages[t]) * (r[i]) * (((mean_diff*mean_diff) / (stddev_2*stddev)) - (1/stddev))
                                                             + ENTROPY_BONUS * (1/stddev);
                         }
                     }
@@ -413,16 +469,40 @@ class PPO{
                 
                 }   // End minibatch
 
-                // Average total weights
-                for(int i = 0; i < weight_count; ++i)
+                // Average total weights and add momentum
+                for(int i = 0; i < weight_count; ++i){
                     total_weight_grad[i] /= c;
-                for(int i = 0; i < bias_count; ++i)
+                }
+                for(int i = 0; i < bias_count; ++i){
                     total_bias_grad[i] /= c;
+                }
+                if( MOMENTUM_DECAY > 0  ||  SQR_MOMENTUM_DECAY > 0) {
+                    // Add momentum and root mean square prop
+                    for(int i = 0; i < weight_count; ++i){
+                        policy_weight_momentum[i] =      policy_weight_momentum[i]*MOMENTUM_DECAY         +  total_weight_grad[i]*(1-MOMENTUM_DECAY);
+                        policy_weight_sqr_momentum[i] =  policy_weight_sqr_momentum[i]*SQR_MOMENTUM_DECAY +  total_weight_grad[i]*total_weight_grad[i]*(1-SQR_MOMENTUM_DECAY);
+                        float m_hat =       policy_weight_momentum[i]        / (1 - std::pow(MOMENTUM_DECAY, policy_updates+1));
+                        float sqr_m_hat =   policy_weight_sqr_momentum[i]    / (1 - std::pow(SQR_MOMENTUM_DECAY, policy_updates+1));
+
+                        total_weight_grad[i] = m_hat / (std::sqrt(sqr_m_hat) + N_EPSILON);
+                    }
+                    for(int i = 0; i < bias_count; ++i){
+                        policy_bias_momentum[i] =      policy_bias_momentum[i]*MOMENTUM_DECAY         +  total_bias_grad[i]*(1-MOMENTUM_DECAY);
+                        policy_bias_sqr_momentum[i] =  policy_bias_sqr_momentum[i]*SQR_MOMENTUM_DECAY +  total_bias_grad[i]*total_bias_grad[i]*(1-SQR_MOMENTUM_DECAY);
+                        float m_hat =       policy_bias_momentum[i]        / (1 - std::pow(MOMENTUM_DECAY, policy_updates+1));
+                        float sqr_m_hat =   policy_bias_sqr_momentum[i]    / (1 - std::pow(SQR_MOMENTUM_DECAY, policy_updates+1));
+
+                        total_bias_grad[i] = m_hat / (std::sqrt(sqr_m_hat) + N_EPSILON);
+                    }
+                }
 
                 // Account for regularization in gradient
-                policy_network.addRegularization(total_weight_grad, total_bias_grad, -POLICY_REGULARIZATION_STRENGTH); 
+                if(POLICY_REGULARIZATION_STRENGTH > 0)
+                    policy_network.addRegularization(total_weight_grad, total_bias_grad, -POLICY_REGULARIZATION_STRENGTH); 
                 // Apply gradients
-                policy_network.applyGradients(total_weight_grad, total_bias_grad, 1);
+                policy_network.applyGradients(total_weight_grad, total_bias_grad, -LEARNING_RATE);
+                // Update count
+                policy_updates ++;
             }
         } // End episode
     }
@@ -527,15 +607,18 @@ class PPO{
 
     // Returns the probability density at the mean of a normal distribution
     static float probabilityDensity(const float mean, const float stdev, const float choice){
-        // If the stdev is 0, then the probability function approaches 0
+        const float cmm = choice - mean;
+        // If the stdev is 0, then the probability function is 0, unless the choice equals the mean
         // This avoids Nan results, since inf*0 = nan
-        if(stdev <= 1e-5)
+        if(stdev <= N_EPSILON){
+            if(std::abs(cmm) <= N_EPSILON)
+                return 1.0f/0.0f; 
             return 0;
-        
+        }
+            
         // 1/(stdev*sqrt(2*PI))
         const float i_std = (1.0f/2.5066283f) * (1.0f/stdev);
         // e^(-(choice - mean)^2/(2stdev^2))
-        const float cmm = choice - mean;
         const float e_p = std::exp(-(cmm*cmm) / (2*stdev*stdev));
         
         return i_std * e_p;

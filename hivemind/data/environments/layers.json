@@ -5,7 +5,7 @@
     "drag": 0.0035,
     "move_acc": 0.0001,
     "jump_speed": 0.07,
-    "enemy_visibility": 12,
+    "enemy_visibility": 16,
     
     "screen_width":100,
 

@@ -43,7 +43,8 @@ window.onload = async ()=>{
     // Pass neural network weights to WASM
     const network_name = new URL(window.location.href).searchParams.get("network");
     if(network_name == null){
-        await setNetwork("base01_2-30_2-30");
+        //await setNetwork("base02_1-18_1-18");
+        passNetwork(null);
     }
     else{
         await setNetwork(network_name);

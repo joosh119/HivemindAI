@@ -22,7 +22,7 @@
 
 
 // Constants
-const float _EPSILON = 0.00001;
+const float _EPSILON = 1e-5;
 const float _INFINITY = 1.0/0.0;
 
 
@@ -52,23 +52,23 @@ const float REWARD_MOD = 10;
 // The maximum an accumulated punishment can be is 1/(1-REWARD_REDUCTION) * punishment.
 // So, ensure that terminating state punishment are greater than that to ensure that reaching a negative terminal state is more punishing than dying quickly.
 #if defined( MANUAL_TRAIN )
-const float ALIVE_REWARD =      ( 0.50  )   / REWARD_MOD; // Reward for staying alive 1 second is 1
+const float ALIVE_REWARD =      (-0.12  )   / REWARD_MOD; // Reward for staying alive 1 second is 1
 const float MOVE_REWARD =       ( 0.00  )   / REWARD_MOD; // Reward for moving at max speed for 1 second is 0.5
 const float DISTANCE_REWARD =   (-0.00  )   / REWARD_MOD; // Punishment for being at max distance for 1 second is -4
 const float FALLING_REWARD =    (-0.00  )   / REWARD_MOD; // Punishment for falling for 1 second is -2
 const float JUMPING_REWARD =    (-0.00  )   / REWARD_MOD; // Punishment for jumping is -0.5     // NOT IMPLEMENTED 
-const float PLAYER_KILL_REWARD=   100.00    / REWARD_MOD;
-const float FALL_DEATH_REWARD =  -50.00     / REWARD_MOD;
+const float PLAYER_KILL_REWARD=   10.00     / REWARD_MOD;
+const float FALL_DEATH_REWARD =  -25.00      / REWARD_MOD;
 const float PLAYER_DEATH_REWARD= -10.00     / REWARD_MOD;
 
-#elif defined(TARGET_TRAIN)
+#elif defined( TARGET_TRAIN )
 const float ALIVE_REWARD =      ( 0.00  )   / REWARD_MOD; // Reward for staying alive 1 second is 1
 const float MOVE_REWARD =       ( 0.00  )   / REWARD_MOD; // Reward for moving at max speed for 1 second is 0.5
-const float DISTANCE_REWARD =   (-1.00  )   / REWARD_MOD; // Punishment for being at max distance for 1 second is -4
+const float DISTANCE_REWARD =   (-0.25  )   / REWARD_MOD; // Punishment for being at max distance for 1 second is -4
 const float FALLING_REWARD =    (-0.00  )   / REWARD_MOD; // Punishment for falling for 1 second is -2
 const float JUMPING_REWARD =    (-0.00  )   / REWARD_MOD; // Punishment for jumping is -0.5     // NOT IMPLEMENTED 
-const float PLAYER_KILL_REWARD=   0.00     / REWARD_MOD;
-const float FALL_DEATH_REWARD =  -200.0     / REWARD_MOD;
+const float PLAYER_KILL_REWARD=   10.0      / REWARD_MOD;
+const float FALL_DEATH_REWARD =  -25.0      / REWARD_MOD;
 const float PLAYER_DEATH_REWARD= -0.00      / REWARD_MOD;
 
 #elif defined( MOVE_TRAIN )
@@ -247,12 +247,15 @@ PPO ppo;
     void resetEnvironment(){
         // Add summed rewards from the end of the round
         game_metadata.last_round_end_reward = 0;
+        int total = 0;
         for(int i = 0; i < env_dynamics.enemy_episodes.size(); ++i){
             const auto& timestates = env_dynamics.enemy_episodes[i].getTimeStates();
             for(int j = 0; j < timestates.size(); ++j){
                 game_metadata.last_round_end_reward += timestates[j].reward;
             }
+            total += env_dynamics.enemy_episodes[i].size();
         }
+        game_metadata.last_round_end_reward /= total;
 
         // Check if env has been reused too long
         game_metadata.total_env_time_ms += game_metadata.env_time_ms;
@@ -614,8 +617,8 @@ PPO ppo;
             // Punish for being too far away
             const float x = enemyData.episode_history->getTimeStates().back().getStateData()[0];
             const float y = enemyData.episode_history->getTimeStates().back().getStateData()[1];
-            const float dist = std::sqrt(x*x + y*y);
-            reward += DISTANCE_REWARD * dist;
+            const float dist_sqr = x*x + y*y;
+            reward += DISTANCE_REWARD * dist_sqr;
 
             // Reward the enemy for killing the player
             if(enemyData.player_kill_flag){
